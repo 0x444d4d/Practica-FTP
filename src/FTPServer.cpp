@@ -32,9 +32,26 @@
 
 int define_socket_TCP(int port) {
    // Include the code for defining the socket.
+   struct sockaddr_in sin;
+   int fd = socket( AF_INET, SOCK_STREAM, 0 );
+
+   memset( &sin, 0, sizeof(sin));
+   sin.sin_family = AF_INET;
+   sin.sin_addr.s_addr = INADDR_ANY;
+   sin.sin_port = htons(port);
+
+   if (bind(fd, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+       //error bind. Codigo en errno
+       return -1;
+   }
+
+   if (listen(fd, 5) < 0) {
+       //fallo en listen. Codigo en errno.
+       return -1;
+   }
+   //bind(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
   
-  
-   return -1;
+   return fd;
 }
 
 // This function is executed when the thread is executed.
