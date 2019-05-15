@@ -1,7 +1,10 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-void errexit(const char *format, ...)
+#include <cstdlib>
+
+inline void errexit(const char *format, ...)
+
 {
     va_list args;
     va_start(args, format);
