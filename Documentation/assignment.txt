@@ -147,7 +147,16 @@ Using binary mode to transfer files.
 ftp> get README
 local: README remote: README
 
-Página 3
+       |    8           if (!chdir(arg)) {
+~                                                                                                                      |    9               //Error detectado, errno contiene el codigo
+~                                                                                                                      |   10           }
+~                                                                                                                      |   11        
+~                                                                                                                      |   12       }
+~                                                                                                                      |   13       else if (COMMAND("STOR") ) {
+~                                                                                                                      |   14           FILE* file;
+ REDES/FTP/src/ftp_server.cpp                                                 cpp  utf-8[unix]   93% ☰   30/32 ㏑ :  1 | REDES/FTP/src/ClientConnection.cpp                                          cpp  utf-8[unix]   73% ☰  140/190 ㏑ : 28 
+   14 #include "common.h"                                                                                              |
+   13 #include "FTPServer.h"                                                                                           |       -async This option will cause the client socPágina 3
 
 Grado en Ingeniería Informática
 Redes y Sistemas Distribuidos (Curso 2018-2019)

@@ -42,11 +42,13 @@ int define_socket_TCP(int port) {
 
    if (bind(fd, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
        //error bind. Codigo en errno
+       fprintf(stderr, "Error en bind");
        return -1;
    }
 
    if (listen(fd, 5) < 0) {
        //fallo en listen. Codigo en errno.
+       fprintf(stderr, "Error en listen");
        return -1;
    }
    //bind(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
