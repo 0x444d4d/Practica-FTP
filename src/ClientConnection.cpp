@@ -162,7 +162,7 @@ void ClientConnection::WaitForRequests() {
       }
       else if (COMMAND("PASS")) {
           fscanf(fd, "%s", arg);
-          if ( strcmp(arg, "pepe") == 1 ) {
+          if ( strcmp(arg, "pepe") == 0 ) {
               fprintf(fd, "230 Correct password\n");
           } else {
               fprintf(fd, "500 Error\n");
@@ -246,8 +246,6 @@ void ClientConnection::WaitForRequests() {
               do {
                   size = recv(data_socket, buff, 4096, 0);
                   printf("Recividos %d bytes\n", size);
-                  //buff[2047] = '\0';
-                  //fwrite(buff, sizeof(char), size, file);
                   file << buff;
 
                   fstat(data_socket, &buf);
@@ -255,16 +253,10 @@ void ClientConnection::WaitForRequests() {
               } while (buf.st_size != 0);
 
               fprintf(fd, "226 Stored file correctly\n");
-              //fclose(file);
               file.close();
               close(data_socket);
+
           }
-
-
-
-          
-          //Realizar conexión y guardar datos.
-	    
       }
       else if (COMMAND("SYST")) {
           fprintf(fd, "215 UNIX Type: L8\n");
@@ -273,8 +265,7 @@ void ClientConnection::WaitForRequests() {
       else if (COMMAND("TYPE")) {
           fscanf(fd, "%s", arg);
 
-          //Cambiar por strcmp
-          if ( (arg == "A") || (arg == "E") || (arg == "I")) {
+          if ( strcmp(arg, "A") || strcmp(arg, "B") || strcmp(arg, "I")) {
               fprintf(fd, "200 Binary mode.\n");
               fflush(fd);
           } else {
@@ -284,9 +275,36 @@ void ClientConnection::WaitForRequests() {
 
       }
       else if (COMMAND("RETR")) {
-	   
+
+          FILE* ofile;
+          std::ifstream file;
+          std::string fstring;
+          char buff[4096];
+          fscanf(fd, "%s", arg);
+          file.open(arg);
+          int size = 4096;
+
+          ofile = fopen(arg, "r");
+
+          if ( ofile != NULL) {
+
+              fprintf(fd, "150 requested file opened\n");
+              while (size == 4096) {
+                  size = fread(buff, 1, 4096, ofile);
+                  send(data_socket, buff, size, 0);
+              }
+
+              fclose(ofile);
+              fprintf(fd, "226 file sent correctly\n");
+              fflush(fd);
+
+          } else {
+              fprintf(fd, "501 file doesn't exist\n");
+              fflush(fd);
+          }
+          close(data_socket);
       }
-      else if (COMMAND("QUIT")) {
+          else if (COMMAND("QUIT")) {
           fprintf(fd, "221 Closing server\n");
           fflush(fd);
           stop();
