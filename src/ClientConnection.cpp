@@ -1,10 +1,10 @@
 //****************************************************************************
 //                         REDES Y SISTEMAS DISTRIBUIDOS
-//                      
+//
 //                     2º de grado de Ingeniería Informática
-//                       
+//
 //              This class processes an FTP transactions.
-// 
+//
 //****************************************************************************
 
 
@@ -27,7 +27,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <sys/stat.h> 
+#include <sys/stat.h>
 #include <iostream>
 #include <dirent.h>
 
@@ -45,7 +45,7 @@ const unsigned short PATH_BUFF = 4098;
 
 ClientConnection::ClientConnection(int s) {
     int sock = (int)(s);
-  
+
     char buffer[MAX_BUFF];
 
     control_socket = s;
@@ -60,18 +60,18 @@ ClientConnection::ClientConnection(int s) {
         ok = false;
         return ;
     }
-    
+
     ok = true;
     data_socket = -1;
     parar = false;
-  
+
 };
 
 
 ClientConnection::~ClientConnection() {
  	fclose(fd);
-	close(control_socket); 
-  
+	close(control_socket);
+
 }
 
 
@@ -97,7 +97,7 @@ int connect_TCP( uint32_t address,  uint16_t  port) {
        return -1;
    }
    //bind(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
-  
+
    return fd;
 }
 
@@ -110,34 +110,34 @@ void ClientConnection::stop() {
     close(data_socket);
     close(control_socket);
     parar = true;
-  
+
 }
 
 
 
 
 
-    
+
 #define COMMAND(cmd) strcmp(command, cmd)==0
 
 // This method processes the requests.
 // Here you should implement the actions related to the FTP commands.
 // See the example for the USER command.
-// If you think that you have to add other commands feel free to do so. You 
+// If you think that you have to add other commands feel free to do so. You
 // are allowed to add auxiliary methods if necessary.
 
 void ClientConnection::WaitForRequests() {
     //bool parar = false;
     if (!ok) {
 	 return;
-    } 
-    
+    }
+
     fprintf(fd, "220 Service ready\n");
-  
+
     while(!parar) {
 
 
- 
+
       fscanf(fd, "%s", command);
       if (COMMAND("USER")) {
 	    fscanf(fd, "%s", arg);
@@ -150,9 +150,9 @@ void ClientConnection::WaitForRequests() {
           } else {
               //Enviar error, directorio no existe o no es accesible.
           }
-          
+
           //Conectar con cliente y enviar cwdirectory
-	   
+
       }
       else if (COMMAND("PASS")) {
           fscanf(fd, "%s", arg);
@@ -161,7 +161,7 @@ void ClientConnection::WaitForRequests() {
           } else {
               //Error contraseña
           }
-	   
+
       }
       else if (COMMAND("PORT")) {
           uint32_t a1, a2, a3, a4, p1, p2;
@@ -210,43 +210,79 @@ void ClientConnection::WaitForRequests() {
           if (!chdir(arg)) {
               //Error detectado, errno contiene el codigo
           }
-	   
+
       }
       else if (COMMAND("STOR") ) {
           FILE* file;
           fscanf(fd, "%s", arg);
           file = fopen(arg, "r+");
-          fprintf(fd, "150 File creation ok, about to open data connection");
+          fprintf(fd, "150 File creation ok, about to open data connection\n");
           //Realizar conexión y guardar datos.
-	    
+
       }
       else if (COMMAND("SYST")) {
-	   
+	  fprintf(fd, "215 UNIX Type: L8\n");
+
       }
       else if (COMMAND("TYPE")) {
-	  
+	  fscanf(fd, "%s", arg);
+
+	  if ( (arg == "A") || (arg == "E") || (arg == "I"))
+		  fprintf(fd, "200 Ok.\n");
+
       }
       else if (COMMAND("RETR")) {
-	   
+  	  DIR *dp;
+  	  struct dirent *dir;
+
+  	  FILE *foriginal, *fcopy;
+
+  	  fscanf(fd, "%s", arg);
+  	  dp = opendir(arg);
+
+  	  if (dp != NULL) {
+    		dir = readdir(dp);
+
+    	  char original[1024];
+    	 	char copy[1024];
+
+  	  	foriginal = fopen(dir->d_name, "r");
+  	  	fcopy = fopen ("copia.txt", "w");
+
+  	  	if ((foriginal == NULL) || (fcopy == NULL))
+  		  	fprintf(fd, "Error reading files");
+
+  	  	else {
+  			 fprintf(fd, "150, File status okay; about to open data connection\n");
+
+  		 	 while (fgets(original, sizeof(original), foriginal) != NULL)
+  				 strcpy(copy,original);
+  	     }
+  	  }
+
+
+
+
       }
       else if (COMMAND("QUIT")) {
-	 
+
       }
       else if (COMMAND("LIST")) {
-	
+
+
       }
       else  {
 	    fprintf(fd, "502 Command not implemented.\n"); fflush(fd);
 	    printf("Comando : %s %s\n", command, arg);
 	    printf("Error interno del servidor\n");
-	
+
       }
-      
+
     }
-    
+
     fclose(fd);
 
-    
+
     return;
-  
+
 };
