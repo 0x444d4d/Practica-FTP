@@ -36,8 +36,9 @@
 #include "common.h"
 
 #include "ClientConnection.h"
+#include "FTPServer.h"
 
-
+#include <fstream>
 
 
 const unsigned short PATH_BUFF = 4098;
@@ -97,7 +98,7 @@ int ClientConnection::connect_TCP( uint32_t address,  uint16_t  port) {
    sin.sin_addr.s_addr = address;
    sin.sin_port = htons(port);
 
-   if ( connect(data_socket, (struct sockaddr *) &sin, sizeof(sin)) ) {
+   if ( connect(data_socket, (struct sockaddr *) &sin, sizeof(sin)) == 0) {
        printf("Connection stablished\n");
        return 0;
    } else {
@@ -142,8 +143,6 @@ void ClientConnection::WaitForRequests() {
     fprintf(fd, "220 Service ready\n");
   
     while(!parar) {
-
-
  
       fscanf(fd, "%s", command);
       if (COMMAND("USER")) {
@@ -163,77 +162,107 @@ void ClientConnection::WaitForRequests() {
       }
       else if (COMMAND("PASS")) {
           fscanf(fd, "%s", arg);
-          if ( strcmp(arg, "pepe") ) {
+          if ( strcmp(arg, "pepe") == 1 ) {
               fprintf(fd, "230 Correct password\n");
           } else {
+              fprintf(fd, "500 Error\n");
               //Error contraseña
           }
+          fflush(fd);
 	   
       }
       else if (COMMAND("PORT")) {
           uint32_t a1, a2, a3, a4, p1, p2;
-          int port, address;
-          fscanf(fd, "%u, %u, %u, %u, %u, %u", &a1, &a2, &a3 ,&a4, &p1, &p2);
+          int port = 0, address;
+          fscanf(fd, "%u,%u,%u,%u,%u,%u", &a4, &a3, &a2 ,&a1, &p1, &p2);
 
           port = p1 << 8;
           port = port | p2;
           
           address = a1 << 24 | a2 << 16 | a3 << 8 | a4;
-
-          if (connect_TCP( address, port ) < 0) {
-              fprintf(fd, "421 Cannot stablish connection (%d.%d.%d.%d %d, %d)\n",a1, a2, a3 , a4, p1, p2);
+          int error =  connect_TCP(address, port);
+          if (error < 0) {
+              fprintf(fd, "421 Cannot stablish connection (%d,%d,%d,%d,%d,%d)\n",a4, a3, a2 , a1, p1, p2);
+              fflush(fd);
               ok = false;
           } else {
               fprintf(fd, "200 Ok.\n");
+              fflush(fd);
               ok = true;
           }
       }
       else if (COMMAND("PASV")) {
-          //Revisar puerto.
-          //Seleccionar puerto local.
-          uint32_t address = 0;
-          uint16_t port = 2122;
-          uint8_t aux = 127;
-          uint8_t plow = 0, phigh = 0; //parte baja y alta del puerto.
-          phigh = 190;
-          plow = 81;
+          printf("Received PASV\n");
 
-          port = port | phigh;
-          port = (port << 8 ) | plow;
-          //plow = port | plow;
-          //phigh = (port >> 8) | phigh;
+          int s = define_socket_TCP(0);
 
-          address = address | aux;
-          address = address << 8;
-          aux = 0;
-          address = address | aux;
-          address = address << 8;
-          address = address | aux;
-          address = address << 8;
-          aux = 1;
-          address = address | aux;
-          address = address << 8;
+          struct sockaddr_in sin;
+          socklen_t slen = sizeof(sin);
+          getsockname(s, (sockaddr*)&sin, &slen);
+          int port = sin.sin_port;
+          
+          int phigh = port & 0xFF;
+          int plow = port >> 8;
 
-          if (connect_TCP(address, port) ) {
-              fprintf(fd, "421, cannot stablish connection\n");
-          } else {
-              printf("Entrando al modo pasivo\n");
-              fprintf(fd, "200, Ok\n");
-          }
-          fprintf(fd, "227 Entering Passive Mode (127.0.0.1,190,81)\n");
+          fprintf(fd, "227 Entering Passive Mode 127,0,0,1,%d,%d\n", phigh, plow);
+          fflush(fd);
+
+          data_socket = accept(s, (sockaddr*)&sin, &slen);
       }
       else if (COMMAND("CWD")) {
           fscanf(fd, "%s", arg);
-          if (!chdir(arg)) {
+          if (chdir(arg) == 0) {
               //Error detectado, errno contiene el codigo
+              fprintf(fd, "250 Working directory changed\n");
+              fflush(fd);
+          } else {
+              fprintf(fd, "550 Changing directory failed\n");
+              fflush(fd);
           }
 	   
       }
       else if (COMMAND("STOR") ) {
-          FILE* file;
+          std::ofstream file;
+          char buff[4096];
+          int size;
+
+          printf("Received STOR\n");
+
           fscanf(fd, "%s", arg);
-          file = fopen(arg, "r+");
-          fprintf(fd, "150 File creation ok, about to open data connection\n");
+          printf("Requested file: %s\n", arg);
+          //file = fopen(arg, "r+");
+          file.open(arg);
+
+          if (!file.is_open()) {
+              fprintf(fd, "450 File unavailable\n");
+              fflush(fd);
+              close(data_socket);
+          } else {
+              fprintf(fd, "150 File creation ok, about to open data connection\n");
+              fflush(fd);
+              
+              struct stat buf;
+
+              do {
+                  size = recv(data_socket, buff, 4096, 0);
+                  printf("Recividos %d bytes\n", size);
+                  //buff[2047] = '\0';
+                  //fwrite(buff, sizeof(char), size, file);
+                  file << buff;
+
+                  fstat(data_socket, &buf);
+
+              } while (buf.st_size != 0);
+
+              fprintf(fd, "226 Stored file correctly\n");
+              //fclose(file);
+              file.close();
+              close(data_socket);
+          }
+
+
+
+          
           //Realizar conexión y guardar datos.
 	    
       }
@@ -242,33 +271,74 @@ void ClientConnection::WaitForRequests() {
 	   
       }
       else if (COMMAND("TYPE")) {
-	  
+          fscanf(fd, "%s", arg);
+
+          //Cambiar por strcmp
+          if ( (arg == "A") || (arg == "E") || (arg == "I")) {
+              fprintf(fd, "200 Binary mode.\n");
+              fflush(fd);
+          } else {
+              fprintf(fd, "501 Syntax error\n");
+              fflush(fd);
+          }
+
       }
       else if (COMMAND("RETR")) {
 	   
       }
       else if (COMMAND("QUIT")) {
+          fprintf(fd, "221 Closing server\n");
+          fflush(fd);
+          stop();
 	 
       }
       else if (COMMAND("LIST")) {
 
-          fscanf(fd, "%s", arg);
+          printf("Received LIST\n");
 
-          if (arg != NULL) {
-              DIR *dir;
-              struct dirent *ent;
-              if ((dir = opendir (arg)) != NULL) {
-                  while ((ent = readdir (dir)) != NULL) {
-                      printf ("%s\n", ent->d_name);
-                      send(data_socket, ent->d_name, 256, 0);
-                  }
-                  closedir (dir);
-              } else {
-                  printf("Error al abrir el directorio\n");
-                  //return EXIT_FAILURE;
-              }
+          struct stat buf;
+          int tmpfd = fileno(fd);
+          fstat(tmpfd, &buf);
+
+          char path[4096];
+          getcwd(path, sizeof(path));
+          printf("Directorio: %s\n", path);
+
+          if (buf.st_size != 0) {
+
+              fscanf(fd, "%s", arg);
+              printf("arg = %s\n", arg);
+
+              strcat(path, "/") ;
+              strcat(path, arg);
+
+              printf("Directorio completo: %s\n", path);
           }
-	
+
+          if (path != NULL) {
+
+              DIR* dir = opendir(path);
+              struct dirent *dp;
+              fprintf(fd, "125 list started ok\n");
+              fflush(fd);
+
+              while ( (dp = readdir(dir)) != NULL ) {
+
+                  std::string name = dp->d_name;
+                  name += "\n";
+                  printf("LIST: %s", name.c_str());
+                  send(data_socket, name.c_str(), name.size(), 0);
+              }
+
+              fprintf(fd, "250 completed list.\n");
+              fflush(fd);
+              close(data_socket);
+          } else {
+
+              printf("Error en path\n");
+              fprintf(fd, "500 error\n");
+              fflush(fd);
+          }
       }
       else  {
 	    fprintf(fd, "502 Command not implemented.\n"); fflush(fd);
