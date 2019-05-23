@@ -75,30 +75,37 @@ ClientConnection::~ClientConnection() {
 }
 
 
-int connect_TCP( uint32_t address,  uint16_t  port) {
+int ClientConnection::connect_TCP( uint32_t address,  uint16_t  port) {
+
      // Implement your code to define a socket here
 
-   struct sockaddr_in sin;
-   int fd = socket( AF_INET, SOCK_STREAM, 0 );
+   //char addr[25] = {address};
+   printf( "Connecting to %d, %d\n", address, port );
 
+   data_socket = socket(AF_INET, SOCK_STREAM, 0);
+   if (data_socket < 0) {
+       printf("Error al asignar socket a data_socket\n");
+   } else {
+       printf("Socket asignado correctamente\n");
+   }
+
+
+
+   struct sockaddr_in sin;
    memset( &sin, 0, sizeof(sin));
    sin.sin_family = AF_INET;
-   //sin.sin_addr.s_addr = INADDR_ANY;
    sin.sin_addr.s_addr = address;
    sin.sin_port = htons(port);
 
-   if (bind(fd, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
-       //error bind. Codigo en errno
+   if ( connect(data_socket, (struct sockaddr *) &sin, sizeof(sin)) ) {
+       printf("Connection stablished\n");
+       return 0;
+   } else {
+       printf("Connection not stablished\n");
        return -1;
    }
 
-   if (listen(fd, 5) < 0) {
-       //fallo en listen. Codigo en errno.
-       return -1;
-   }
-   //bind(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
-  
-   return fd;
+
 }
 
 
@@ -157,7 +164,7 @@ void ClientConnection::WaitForRequests() {
       else if (COMMAND("PASS")) {
           fscanf(fd, "%s", arg);
           if ( strcmp(arg, "pepe") ) {
-              fprintf(fd, "230 Correct password");
+              fprintf(fd, "230 Correct password\n");
           } else {
               //Error contraseña
           }
@@ -167,19 +174,19 @@ void ClientConnection::WaitForRequests() {
           uint32_t a1, a2, a3, a4, p1, p2;
           int port, address;
           fscanf(fd, "%u, %u, %u, %u, %u, %u", &a1, &a2, &a3 ,&a4, &p1, &p2);
-          a1 = a1 << 24;
-          a2 = a1 << 16;
-          a3 = a3 << 8;
-          p1 = p1 << 8;
 
-          port = p1 | p2;
-          address = a1 | a2 | a3 | a4;
+          port = p1 << 8;
+          port = port | p2;
+          
+          address = a1 << 24 | a2 << 16 | a3 << 8 | a4;
 
-          data_socket = connect_TCP( address, port );
-          if (data_socket < 0) {
+          if (connect_TCP( address, port ) < 0) {
+              fprintf(fd, "421 Cannot stablish connection (%d.%d.%d.%d %d, %d)\n",a1, a2, a3 , a4, p1, p2);
               ok = false;
+          } else {
+              fprintf(fd, "200 Ok.\n");
+              ok = true;
           }
-          ok = true;
       }
       else if (COMMAND("PASV")) {
           //Revisar puerto.
@@ -187,9 +194,14 @@ void ClientConnection::WaitForRequests() {
           uint32_t address = 0;
           uint16_t port = 2122;
           uint8_t aux = 127;
-          uint8_t plow = 0, phigh = 0;
-          plow = port | plow;
-          phigh = (port >> 8) | phigh;
+          uint8_t plow = 0, phigh = 0; //parte baja y alta del puerto.
+          phigh = 190;
+          plow = 81;
+
+          port = port | phigh;
+          port = (port << 8 ) | plow;
+          //plow = port | plow;
+          //phigh = (port >> 8) | phigh;
 
           address = address | aux;
           address = address << 8;
@@ -202,8 +214,13 @@ void ClientConnection::WaitForRequests() {
           address = address | aux;
           address = address << 8;
 
-          data_socket = connect_TCP(address, 2122);
-          fprintf(fd, "227 Entering Passive Mode (127.0.0.1,129,232)");
+          if (connect_TCP(address, port) ) {
+              fprintf(fd, "421, cannot stablish connection\n");
+          } else {
+              printf("Entrando al modo pasivo\n");
+              fprintf(fd, "200, Ok\n");
+          }
+          fprintf(fd, "227 Entering Passive Mode (127.0.0.1,190,81)\n");
       }
       else if (COMMAND("CWD")) {
           fscanf(fd, "%s", arg);
@@ -216,11 +233,12 @@ void ClientConnection::WaitForRequests() {
           FILE* file;
           fscanf(fd, "%s", arg);
           file = fopen(arg, "r+");
-          fprintf(fd, "150 File creation ok, about to open data connection");
+          fprintf(fd, "150 File creation ok, about to open data connection\n");
           //Realizar conexión y guardar datos.
 	    
       }
       else if (COMMAND("SYST")) {
+          fprintf(fd, "215 UNIX Type: L8\n");
 	   
       }
       else if (COMMAND("TYPE")) {
@@ -233,6 +251,23 @@ void ClientConnection::WaitForRequests() {
 	 
       }
       else if (COMMAND("LIST")) {
+
+          fscanf(fd, "%s", arg);
+
+          if (arg != NULL) {
+              DIR *dir;
+              struct dirent *ent;
+              if ((dir = opendir (arg)) != NULL) {
+                  while ((ent = readdir (dir)) != NULL) {
+                      printf ("%s\n", ent->d_name);
+                      send(data_socket, ent->d_name, 256, 0);
+                  }
+                  closedir (dir);
+              } else {
+                  printf("Error al abrir el directorio\n");
+                  //return EXIT_FAILURE;
+              }
+          }
 	
       }
       else  {

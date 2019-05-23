@@ -33,6 +33,7 @@ private:
     
     int data_socket;         // Data socket descriptor;
     int control_socket;      // Control socket descriptor;
+    int connect_TCP(uint32_t address, uint16_t port);
     
    
 };
