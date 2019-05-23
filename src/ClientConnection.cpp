@@ -154,19 +154,15 @@ void ClientConnection::WaitForRequests() {
           if (getcwd(cwdirectory, sizeof(cwdirectory) ) != nullptr) {
               fprintf(fd, "257 \"%s\"\n",cwdirectory); //REVISAR
           } else {
-              //Enviar error, directorio no existe o no es accesible.
+              fprintf(fd, "501 Directory does not exist\n");
           }
-          
-          //Conectar con cliente y enviar cwdirectory
-	   
       }
       else if (COMMAND("PASS")) {
           fscanf(fd, "%s", arg);
-          if ( strcmp(arg, "pepe") == 0 ) {
+          if ( strcmp(arg, "1234") == 0 ) {
               fprintf(fd, "230 Correct password\n");
           } else {
               fprintf(fd, "500 Error\n");
-              //Error contraseña
           }
           fflush(fd);
 	   
@@ -230,7 +226,6 @@ void ClientConnection::WaitForRequests() {
 
           fscanf(fd, "%s", arg);
           printf("Requested file: %s\n", arg);
-          //file = fopen(arg, "r+");
           file.open(arg);
 
           if (!file.is_open()) {
@@ -307,7 +302,8 @@ void ClientConnection::WaitForRequests() {
           else if (COMMAND("QUIT")) {
           fprintf(fd, "221 Closing server\n");
           fflush(fd);
-          stop();
+          parar = true;
+          //stop();
 	 
       }
       else if (COMMAND("LIST")) {

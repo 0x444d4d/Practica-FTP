@@ -43,16 +43,38 @@ int define_socket_TCP(int port) {
    if (bind(fd, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
        //error bind. Codigo en errno
        fprintf(stderr, "Error en bind");
+       switch (errno) {
+           case EBADF:
+               fprintf(stderr, "Descriptor de socket %d invalido\n", fd);
+               break;
+           case EINVAL:
+               fprintf(stderr, "Socket already bound to address\n");
+               break;
+           case EROFS:
+               fprintf(stderr, "Read only file system\n");
+               break;
+       }
        return -1;
    }
 
    if (listen(fd, 5) < 0) {
        //fallo en listen. Codigo en errno.
        fprintf(stderr, "Error en listen");
+       switch (errno) {
+           case EBADF:
+               fprintf(stderr, "Descriptor de socket %d invalido\n", fd);
+               break;
+           case EINVAL:
+               fprintf(stderr, "Socket is already connected\n");
+               break;
+           case EACCES:
+               fprintf(stderr, "Privileges not sufficient\n");
+               break;
+       }
        return -1;
    }
    //bind(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
-  
+
    return fd;
 }
 
