@@ -21,6 +21,8 @@ private:
     bool ok;  // This variable is a flag that avois that the
 	     // server listens if initialization errors occured.
     bool parar;
+    bool user_ok;
+    bool pass_ok;
    
     
     FILE *fd;	 // C file descriptor. We use it to buffer the
